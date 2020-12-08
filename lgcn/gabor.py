@@ -52,7 +52,6 @@ class GaborFunctionCmplx(Function):
         """
         gabor_filter = gabor_cmplx(weight, gabor_params)
         ctx.save_for_backward(weight, gabor_params, gabor_filter)
-        # print(f'weight.size()={weight.size()}, gabor_filter.size()={gabor_filter.size()}')
         return weight * gabor_filter
 
     @staticmethod
@@ -64,9 +63,7 @@ class GaborFunctionCmplx(Function):
         """
         weight, gabor_params, gabor_filter = ctx.saved_tensors
         grad_gabor = gabor_gradient_cmplx(weight, gabor_params).unsqueeze(3).unsqueeze(2)
-        # print(f'grad_gabor.size()={grad_gabor.size()}, weight.size()={weight.size()}, grad_output.size()={grad_output.size()}, gabor_filter.size()={gabor_filter.size()}')
-        grad = (grad_gabor * weight * grad_output)
-        # print(f'grad.size()={grad.size()}')
+        grad = (grad_gabor * match_shape(weight, grad_gabor, False) * match_shape(grad_output, grad_gabor, False))
         return (
             gabor_filter * grad_output,
             grad.permute(0, 2, 4, 5, 6, 1, 3),
@@ -105,9 +102,10 @@ def cartesian_coords(weight):
     """
     h = weight.size(-2)
     w = weight.size(-1)
-    y, x = torch.meshgrid([torch.arange(-h / 2, h / 2), torch.arange(-w / 2, w / 2)])
-    x = x.to(weight.device)
-    y = y.to(weight.device)
+    y, x = torch.meshgrid([
+        torch.arange(-h / 2, h / 2, device=weight.device, dtype=weight.dtype),
+        torch.arange(-w / 2, w / 2, device=weight.device, dtype=weight.dtype)
+    ])
     return x, y
 
 
@@ -163,7 +161,7 @@ def gabor_cmplx(weight, params):
     real = f * s_h(x_p, l)
     imag = f * s_h_imag(x_p, l)
 
-    return norm(cmplx(real, imag)).unsqueeze(2).unsqueeze(1)
+    return cmplx(real, imag).unsqueeze(2).unsqueeze(1)
 
 
 def gabor_gradient(weight, params):
@@ -206,17 +204,17 @@ def gabor_gradient_cmplx(weight, params):
     f = f_h(x, y)
     x_p = x_prime(x, y, theta)
     y_p = y_prime(x, y, theta)
-    dx = -2 * math.pi / l
+    dx = 2 * math.pi / l
     df = dx * f
-    dgdt = cmplx(
+    dgdtheta = cmplx(
         - df * y_p * torch.sin(dx * x_p),
         df * y_p * torch.cos(dx * x_p),
     )
-    dgdl = cmplx(
+    dgdlambda = cmplx(
         df / l * x_p * torch.sin(dx * x_p),
         - df / l * x_p * torch.cos(dx * x_p),
     )
-    return torch.stack([dgdt, dgdl], dim=1)
+    return torch.stack([dgdtheta, dgdlambda], dim=1)
 
 
 
