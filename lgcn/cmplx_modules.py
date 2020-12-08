@@ -94,7 +94,6 @@ class LGConvCmplx(nn.Module):
 
     def forward(self, x):
         enhanced_weight = self.gabor(self.weight.unsqueeze(2))
-        # print(f'x.size()={x.size()}, enhanced_weight.size()={enhanced_weight.size()}')
         if x.dim() == 6:
             x = x.view(
                 2,
@@ -117,7 +116,6 @@ class LGConvCmplx(nn.Module):
         )
 
         out, max_idxs = self.gabor_pooling(pool_out, dim=3, keepdim=True)
-        # print(f"out.size()={out.size()}")
 
         return out
 
@@ -231,7 +229,6 @@ class BatchNormCmplx(nn.Module):
         exponential_average_factor = 0.0
         xsh = x.size()
         x = x.view(2, xsh[1], xsh[2] * xsh[3], *xsh[4:])
-        # print(xsh, x.size())
 
         if self.training and self.track_running_stats:
             if self.num_batches_tracked is not None:
@@ -299,5 +296,4 @@ class BatchNormCmplx(nn.Module):
                 self.bias[None, :, 1, None, None])
 
         x = x.view(xsh)
-        # print(x.size())
         return x
