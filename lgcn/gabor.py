@@ -70,6 +70,51 @@ class GaborFunctionCmplx(Function):
         )
 
 
+class GaborFunctionCyclicCmplx(Function):
+    """Extends autograd Function to create a Gabor filter with learnable theta.
+    """
+
+    @staticmethod
+    def forward(ctx, weight, gabor_params):
+        """Applies a Gabor filter to given weight. gabor_params contains thetas/sigmas.
+
+        Args:
+            weight (Tensor): data to apply filter to.
+            gabor_params (Tensor): theta and sigma parameters.
+                Must have gabor_params.size() = [N, 2]
+        """
+        gabor_filter = gabor_cmplx(weight, gabor_params)
+        cyclic_gabor_filter = cyclic_expand(gabor_filter)
+        ctx.save_for_backward(weight, gabor_params, cyclic_gabor_filter)
+        print(f'weight.size()={weight.size()}, cyclic_gabor_filter.size()={cyclic_gabor_filter.size()}')
+        return weight * cyclic_gabor_filter
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        """Computes gradients for Gabor filter backprop.
+
+        Args:
+            grad_output (Tensor): gradient from graph.
+        """
+        weight, gabor_params, gabor_filter = ctx.saved_tensors
+        grad_gabor = gabor_gradient_cmplx(weight, gabor_params).unsqueeze(3).unsqueeze(2)
+        cyclic_grad_gabor = cyclic_expand(grad_gabor)
+        print(f'grad_gabor.size()={grad_gabor.size()}, weight.size()={weight.size()}, grad_output.size()={grad_output.size()}')
+        print(f'cyclic_grad_gabor.size()={cyclic_grad_gabor.size()}, new_weight.size()={match_shape(weight, cyclic_grad_gabor, False).size()}, new_grad_output.size()={match_shape(grad_output, cyclic_grad_gabor, False).size()}')
+        grad = (cyclic_grad_gabor * match_shape(weight, cyclic_grad_gabor, False) * match_shape(grad_output, cyclic_grad_gabor, False))
+        return (
+            gabor_filter * grad_output,
+            grad.permute(0, 2, 4, 5, 6, 1, 3),
+        )
+
+
+def cyclic_expand(t):
+    no_g = t.size(2)
+    cts = [t.roll(i, 2) for i in range(no_g)]
+    ct = torch.stack(cts, dim=3)
+    return ct
+
+
 def match_shape(x, y, compress=True):
     """Reshapes a tensor to be broadcastable with another
 
@@ -107,12 +152,6 @@ def cartesian_coords(weight):
         torch.arange(-w / 2, w / 2, device=weight.device, dtype=weight.dtype)
     ])
     return x, y
-
-
-def norm(t, eps=1e-12):
-    """Normalises tensor between 0 and 1
-    """
-    return (t - t.min()) / (t.max() - t.min() + eps)
 
 
 def gabor(weight, params):
@@ -218,10 +257,10 @@ def gabor_gradient_cmplx(weight, params):
 
 
 
-def f_h(x, y):
+def f_h(x, y, sigma=2):
     """First half of filter
     """
-    return torch.exp(-(x ** 2 + y ** 2)).unsqueeze(0)
+    return torch.exp(-(x ** 2 + y ** 2) / (2 * sigma ** 2)).unsqueeze(0)
 
 
 def s_h(x_p, l):
