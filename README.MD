@@ -2,7 +2,7 @@
 
 This source code provides the implementation for [Learnable Gabor-modulated Complex-valued Networks (LGCNs)](https://arxiv.org/abs/2011.11734).
 
-Authors: Felix Richards, Adeline Paiement, Xianghua Xie, Pierre-Alain Duc.
+Authors: Felix Richards, Adeline Paiement, Xianghua Xie, Elisabeth Sola, Pierre-Alain Duc.
 
 ### Usage
 
